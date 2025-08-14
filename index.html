@@ -195,7 +195,52 @@
     }
     // Разбор CSV-строки: пытаемся по умолчанию, при необходимости подбираем разделитель ; или 	
     function parseCSVText(txt){
-      let wb = XLSX.read(txt, {type:'string'});
+      // Удаляем BOM
+      txt = txt.replace(/^﻿/, '');
+      const firstLine = txt.split(/
+?
+/,1)[0] || '';
+      const detectedSep = firstLine.includes(';') ? ';' : (firstLine.includes('	') ? '	' : (firstLine.includes(',') ? ',' : null));
+
+      // Если SheetJS доступен — используем его (с учётом FS)
+      if (typeof XLSX !== 'undefined' && XLSX && typeof XLSX.read === 'function'){
+        let wb = XLSX.read(txt, {type:'string', FS: detectedSep || undefined});
+        let ws = wb.Sheets[wb.SheetNames[0]];
+        let rows = XLSX.utils.sheet_to_json(ws,{defval:''});
+        if(rows.length && Object.keys(rows[0]||{}).length === 1 && !detectedSep){
+          const sep = firstLine.includes(';') ? ';' : (firstLine.includes('	') ? '	' : ',');
+          wb = XLSX.read(txt, {type:'string', FS: sep}); ws = wb.Sheets[wb.SheetNames[0]]; rows = XLSX.utils.sheet_to_json(ws,{defval:''});
+        }
+        return rows;
+      }
+
+      // Фолбэк: свой парсер CSV (кавычки, экранирование "")
+      const sep = detectedSep || ';';
+      function splitLine(line, s){
+        const out=[]; let cur=''; let inQ=false;
+        for(let i=0;i<line.length;i++){
+          const ch=line[i];
+          if(ch==='"'){
+            if(inQ && line[i+1]==='"'){ cur+='"'; i++; }
+            else inQ=!inQ;
+          } else if(ch===s && !inQ){ out.push(cur); cur=''; }
+          else { cur+=ch; }
+        }
+        out.push(cur); return out;
+      }
+      const lines = txt.split(/
+?
+/).filter(l=> l.length>0);
+      if(!lines.length) return [];
+      const headers = splitLine(lines[0], sep).map(h=> h.replace(/^"|"$/g,''));
+      const rows=[];
+      for(let i=1;i<lines.length;i++){
+        const cells = splitLine(lines[i], sep).map(v=> v.replace(/^"|"$/g,''));
+        const obj={}; for(let j=0;j<headers.length;j++){ obj[headers[j]] = (cells[j]!==undefined)? cells[j] : ''; }
+        rows.push(obj);
+      }
+      return rows;
+    });
       let ws = wb.Sheets[wb.SheetNames[0]];
       let rows = XLSX.utils.sheet_to_json(ws,{defval:''});
       if(rows.length && Object.keys(rows[0]||{}).length === 1){
@@ -254,10 +299,11 @@
         } else if(ct.includes('csv') || /\.csv(\?|$)/i.test(url) || /text\//.test(ct)){
           const txt = decodeBest(ab); rows = parseCSVText(txt);
         } else {
-          // Пробуем как XLSX/XLS
-          const wb = XLSX.read(ab, {type:'array'}); const ws = wb.Sheets[wb.SheetNames[0]]; rows = XLSX.utils.sheet_to_json(ws,{defval:''});
-          // Если в xlsx не получилось, пробуем как текст CSV
-          if(!rows.length){ const txt = decodeBest(ab); rows = parseCSVText(txt); }
+          if (typeof XLSX !== 'undefined' && XLSX && typeof XLSX.read === 'function'){
+            const wb = XLSX.read(ab, {type:'array'}); const ws = wb.Sheets[wb.SheetNames[0]]; rows = XLSX.utils.sheet_to_json(ws,{defval:''});
+          } else {
+            const txt = decodeBest(ab); rows = parseCSVText(txt); // пробуем как текстовый CSV
+          }
         }
         useRows(rows, new URL(url).hostname, url);
       }catch(e){ console.error(e); setStatus('Ошибка загрузки URL'); alert('Не удалось загрузить по URL. Возможно, CORS запрещён или формат не распознан. Подробнее в консоли.'); }
@@ -277,7 +323,20 @@
 
     function readFile(file){
       const ext=file.name.split('.').pop().toLowerCase(); const reader=new FileReader();
-      if(ext==='json'){ reader.onload=()=>{ const rows=JSON.parse(reader.result); useRows(Array.isArray(rows)?rows:(rows.data||[]), file.name); }; reader.readAsText(file,'utf-8'); }
+      if(ext==='json'){
+        reader.onload=()=>{ const rows=JSON.parse(reader.result); useRows(Array.isArray(rows)?rows:(rows.data||[]), file.name); };
+        reader.readAsText(file,'utf-8');
+      } else if(ext==='csv'){
+        reader.onload=()=>{ const txt = decodeBest(reader.result); const rows = parseCSVText(txt); useRows(rows, file.name); };
+        reader.readAsArrayBuffer(file);
+      } else if(['xlsx','xls'].includes(ext)){
+        if (typeof XLSX === 'undefined' || !XLSX.read){ alert('Для XLSX нужна библиотека SheetJS. Либо загрузите CSV, либо откройте страницу с активным CDN.'); return; }
+        reader.onload=()=>{ const wb=XLSX.read(reader.result,{type:'binary'}); const ws=wb.Sheets[wb.SheetNames[0]]; const json=XLSX.utils.sheet_to_json(ws,{defval:''}); useRows(json, file.name); };
+        reader.readAsBinaryString(file);
+      } else {
+        alert('Неподдерживаемый формат: '+ext);
+      }
+    }; reader.readAsText(file,'utf-8'); }
       else if(['csv','xlsx','xls'].includes(ext)){ reader.onload=()=>{ const wb=XLSX.read(reader.result,{type:'binary'}); const ws=wb.Sheets[wb.SheetNames[0]]; const json=XLSX.utils.sheet_to_json(ws,{defval:''}); useRows(json, file.name); }; reader.readAsBinaryString(file); }
       else alert('Неподдерживаемый формат: '+ext);
     }
