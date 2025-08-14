@@ -208,79 +208,94 @@
     }
 
     // Надёжный CSV‑парсер: переносы внутри кавычек, авто‑разделитель ;/\t/,
-    function parseCSVText(txt){
-      txt = txt.replace(/^\uFEFF/, ''); // BOM
-      // 1) Собираем строки, уважая кавычки
-      const rowsRaw = []; let cur='', inQ=false;
-      for(let i=0;i<txt.length;i++){
-        const ch=txt[i];
-        if(ch==='"'){
-          if(inQ && txt[i+1]==='"'){ cur+='"'; i++; }
-          else { inQ=!inQ; cur+=ch; }
-        } else if((ch==='\n' || ch==='\r') && !inQ){ if(ch==='\r' && txt[i+1]==='\n') i++; rowsRaw.push(cur); cur=''; }
-        else { cur+=ch; }
+   <script>
+// --- ЗАМЕНИТЕ всю функцию parseCSVText на это ---
+function parseCSVText(txt){
+  // 1) Убираем BOM
+  txt = txt.replace(/^\uFEFF/, '');
+
+  // 2) Excel-директива в первой строке: sep=; или sep=, или sep=\t
+  let sepFromDirective = null;
+  const m = txt.match(/^\s*sep\s*=\s*(?:"([^"]+)"|([^\r\n]+))\s*(?:\r?\n|\r)/i);
+  if (m){
+    const raw = (m[1] || m[2] || '').trim();
+    sepFromDirective = raw === "\\t" ? "\t" : raw[0]; // sep=\t -> \t, sep=; -> ;
+    txt = txt.slice(m[0].length); // срезаем директиву
+  }
+
+  // 3) Разбиваем файл на строки, уважая кавычки и CRLF
+  const rowsRaw = [];
+  let cur = "", inQ = false;
+  for (let i=0; i<txt.length; i++){
+    const ch = txt[i];
+    if (ch === '"'){
+      if (inQ && txt[i+1] === '"'){ cur += '"'; i++; } // экранирование ""
+      else { inQ = !inQ; }
+      continue;
+    }
+    if (!inQ && (ch === '\n' || ch === '\r')){
+      if (ch === '\r' && txt[i+1] === '\n') i++; // CRLF
+      rowsRaw.push(cur); cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  if (cur.length) rowsRaw.push(cur);
+
+  const rows = rowsRaw.map(r => r.trim()).filter(Boolean);
+  if (!rows.length) return [];
+
+  // 4) Определяем разделитель по первой строке (если нет директивы sep=)
+  function countSep(s, sep){
+    let cnt=0, q=false;
+    for (let i=0;i<s.length;i++){
+      const ch=s[i];
+      if (ch === '"'){ if (q && s[i+1] === '"'){ i++; } else q=!q; }
+      else if (ch === sep && !q){ cnt++; }
+    }
+    return cnt;
+  }
+  const first = rows[0];
+  let sep = sepFromDirective || [';','\t',','].reduce((best,c)=>{
+    return countSep(first, c) > countSep(first, best) ? c : best;
+  }, ';');
+
+  // 5) Разбираем строку на ячейки (кавычки + экранирование "")
+  function parseLine(line){
+    const out=[]; let field="", q=false;
+    for (let i=0;i<line.length;i++){
+      const ch=line[i];
+      if (ch === '"'){
+        if (q && line[i+1] === '"'){ field += '"'; i++; }
+        else { q = !q; }
+      } else if (ch === sep && !q){
+        out.push(field); field="";
+      } else {
+        field += ch;
       }
-      if(cur.length) rowsRaw.push(cur);
-      const rows = rowsRaw.map(r=> r.trim()).filter(Boolean);
-      if(!rows.length) return [];
-      // 2) Выбираем разделитель по первой строке (вне кавычек)
-      function countSep(s, sep){ let cnt=0,q=false; for(let i=0;i<s.length;i++){ const ch=s[i]; if(ch==='"'){ if(q && s[i+1]==='"'){ i++; } else q=!q; } else if(ch===sep && !q){ cnt++; } } return cnt; }
-      const first = rows[0]; const cands=[';','\t',',']; let sep=cands[0], best=-1; cands.forEach(c=>{ const n=countSep(first,c); if(n>best){best=n; sep=c;} });
-      // 3) Разбираем строку на ячейки
-      function parseLine(line){ const out=[], q=false; let field='', inq=false; for(let i=0;i<line.length;i++){ const ch=line[i]; if(ch==='"'){ if(inq && line[i+1]==='"'){ field+='"'; i++; } else { inq=!inq; } } else if(ch===sep && !inq){ out.push(field); field=''; } else { field+=ch; } } out.push(field); return out.map(s=> s.replace(/^"|"$/g,'').replace(/\r?\n/g,' ').trim()); }
-      let header = parseLine(first); while(header.length && header[header.length-1]==='') header.pop();
-      const out=[]; for(let i=1;i<rows.length;i++){ const cells=parseLine(rows[i]); while(cells.length>header.length) cells.pop(); const obj={}; for(let j=0;j<header.length;j++){ obj[header[j]] = (cells[j]!==undefined)? cells[j] : ''; } if(Object.values(obj).some(v=> String(v).trim()!=='')) out.push(obj); }
-      return out;
     }
+    out.push(field);
+    // убираем внешние кавычки и заменяем переносы в ячейке на пробел
+    return out.map(s => s.replace(/^"|"$/g,'').replace(/\r?\n/g,' ').trim());
+  }
 
-    function inferColumns(rows){ const set=new Set(); rows.slice(0,1000).forEach(r=> Object.keys(r||{}).forEach(k=> set.add(k))); return [...set]; }
-
-    function useRows(rows,label,url){
-      state.raw = rows.filter(Boolean); state.filtered = state.raw.slice(); state.columns = inferColumns(state.raw);
-      $('#rowsCount').textContent = state.raw.length.toLocaleString('ru'); $('#colsCount').textContent = state.columns.length.toLocaleString('ru');
-      setStatus('Подключено: '+(label||'источник'));
-      if(url){ state.sourceURL = url; }
-      fillDims(); buildFilters(); applyFilters(); updateShareLink();
+  // 6) Заголовки + строки → объекты
+  let header = parseLine(first);
+  while (header.length && header[header.length-1] === '') header.pop(); // убираем пустой хвост
+  const out = [];
+  for (let i=1;i<rows.length;i++){
+    const cells = parseLine(rows[i]);
+    while (cells.length > header.length) cells.pop();
+    const obj = {};
+    for (let j=0;j<header.length;j++){
+      obj[header[j]] = (cells[j] !== undefined) ? cells[j] : '';
     }
-
-    async function loadFromURL(url){ url = normalizeDataURL(url);
-      try{
-        setStatus('Загружаю по URL…');
-        const res = await fetch(url, {mode:'cors'}); if(!res.ok) throw new Error('HTTP '+res.status);
-        const ct = res.headers.get('content-type')||''; const ab = await res.arrayBuffer(); let rows=[];
-        if(ct.includes('application/json') || /\.json(\?|$)/i.test(url)){
-          const txt = decodeBest(ab); const json = JSON.parse(txt); rows = Array.isArray(json)? json : (json.data||[]);
-        } else if(ct.includes('csv') || /\.csv(\?|$)/i.test(url) || /text\//.test(ct)){
-          const txt = decodeBest(ab); rows = parseCSVText(txt);
-        } else {
-          if (typeof XLSX !== 'undefined' && XLSX && XLSX.read){ const wb = XLSX.read(ab, {type:'array'}); const ws = wb.Sheets[wb.SheetNames[0]]; rows = XLSX.utils.sheet_to_json(ws,{defval:''}); }
-          if(!rows.length){ const txt = decodeBest(ab); rows = parseCSVText(txt); }
-        }
-        useRows(rows, new URL(url).hostname, url);
-      }catch(e){ console.error(e); setStatus('Ошибка загрузки URL'); alert('Не удалось загрузить по URL. Возможно, CORS запрещён или формат не распознан. Подробнее в консоли.'); }
-    }
-
-    function loadFromText(text){
-      try{
-        const trimmed = text.trim(); let rows=[];
-        if(trimmed.startsWith('{') || trimmed.startsWith('[')){
-          const json = JSON.parse(trimmed); rows = Array.isArray(json)? json : (json.data||[]);
-        } else {
-          rows = parseCSVText(trimmed);
-        }
-        useRows(rows,'вставка');
-      }catch(e){ console.error(e); alert('Не удалось распарсить текст. Проверьте, что это JSON массив или CSV с заголовком.'); }
-    }
-
-    function readFile(file){
-      const ext=file.name.split('.').pop().toLowerCase(); const reader=new FileReader();
-      if(ext==='json'){ reader.onload=()=>{ const rows=JSON.parse(reader.result); useRows(Array.isArray(rows)?rows:(rows.data||[]), file.name); }; reader.readAsText(file,'utf-8'); }
-      else if(ext==='csv'){ reader.onload=()=>{ const txt = decodeBest(reader.result); const rows = parseCSVText(txt); useRows(rows, file.name); }; reader.readAsArrayBuffer(file); }
-      else if(['xlsx','xls'].includes(ext)){
-        if (typeof XLSX === 'undefined' || !XLSX.read){ alert('Для XLSX нужна библиотека SheetJS. Либо загрузите CSV, либо откройте страницу с активным CDN.'); return; }
-        reader.onload=()=>{ const wb=XLSX.read(reader.result,{type:'binary'}); const ws=wb.Sheets[wb.SheetNames[0]]; const json=XLSX.utils.sheet_to_json(ws,{defval:''}); useRows(json, file.name); }; reader.readAsBinaryString(file);
-      } else alert('Неподдерживаемый формат: '+ext);
-    }
+    if (Object.values(obj).some(v => String(v).trim() !== '')) out.push(obj);
+  }
+  return out;
+}
+// --- конец замены ---
+</script>
 
     // ===== Фильтры и измерения =====
     function sortValues(col, arr){
