@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Калькулятор квот — полностью онлайн</title>
+  <style>
+    :root{ --bg:#0b1020; --panel:#0f1630; --muted:#9fb0d0; --text:#e8eeff; --accent:#6aa5ff; --ok:#3ad29f; --warn:#ffce5c; --err:#ff7a7a; }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#0a0f1e,#0c1226);color:var(--text);font:14px/1.45 system-ui,Segoe UI,Roboto,Inter,Arial}
+    header{padding:18px 20px;border-bottom:1px solid #1a2347;position:sticky;top:0;background:#0c1226;z-index:3}
+    header .title{font-weight:700;font-size:18px}
+    header .subtitle{color:var(--muted);font-size:12px}
+
+    .container{max-width:1200px;margin:18px auto;padding:0 16px}
+    .grid{display:grid;gap:12px}
+    .cols{grid-template-columns:repeat(12,1fr)}
+    .card{background:var(--panel);border:1px solid #1a2347;border-radius:14px;padding:14px}
+    .card h3{margin:0 0 10px;font-size:14px;color:#cfe0ff}
+
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row > *{flex:1 1 240px}
+    label{display:block;font-size:12px;color:#c0cbed;margin:0 0 6px}
+    input,select,button,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid #23305a;background:#0b1535;color:var(--text)}
+    select:focus,input:focus,textarea:focus{outline:none;border-color:#3e68ff;box-shadow:0 0 0 3px #3e68ff22}
+    textarea{min-height:120px;resize:vertical}
+    .btn{cursor:pointer;border:1px solid #2a3a70;background:#13235a}
+    .btn.ok{background:linear-gradient(180deg,#2dbd8f,#1f9a75);border:0}
+    .btn.primary{background:linear-gradient(180deg,#2a66ff,#214bff);border:0}
+    .btn.ghost{background:transparent;border-color:#2c3d76}
+
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+    .kpi{background:#0d1a3f;border:1px solid #20306a;border-radius:14px;padding:12px}
+    .kpi .v{font-weight:800;font-size:18px}
+    .kpi .l{font-size:12px;color:#a6b3d9}
+
+    table{width:100%;border-collapse:separate;border-spacing:0}
+    thead th{position:sticky;top:0;background:#0d1736;border-bottom:1px solid #1b285a;z-index:1}
+    th,td{padding:8px 10px;border-bottom:1px solid #17214a;font-size:13px}
+    tbody tr:nth-child(odd){background:#0d1734}
+    tbody tr:hover{background:#13235a}
+
+    .group{margin:12px 0 4px;font-weight:700;color:#d6e4ff}
+    .pill{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;border:1px solid #27407a;color:#cfe0ff;background:#122359;font-size:12px}
+    .footer{opacity:.8;font-size:12px;margin-top:12px}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="title">Калькулятор квот — ONLINE</div>
+    <div class="subtitle">1–3 измерения, вес = «Численность населения», загрузка по URL/вставкой/файлом, шаринг ссылки</div>
+  </header>
+
+  <div class="container grid cols">
+    <!-- Источник -->
+    <section class="card" style="grid-column: span 12">
+      <h3>Источник данных</h3>
+      <div class="row">
+        <div><label>Статус</label><div id="sourceStatus" class="pill">Ожидаю загрузку…</div></div>
+        <div><label>Строк в базе</label><div id="rowsCount" class="pill">—</div></div>
+        <div><label>Колонок</label><div id="colsCount" class="pill">—</div></div>
+      </div>
+      <details open style="margin-top:10px">
+        <summary>Загрузить базу</summary>
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label>Файл (CSV/XLSX/JSON)</label>
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.json" />
+          </div>
+          <div>
+            <label>URL (CSV/XLSX/JSON; с CORS)</label>
+            <div class="row" style="gap:6px">
+              <input id="urlInput" placeholder="https://.../dataset.csv или raw GitHub/Google Sheets CSV"/>
+              <button class="btn" id="btnLoadURL" style="flex:0 0 160px">Загрузить по URL</button>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <div>
+            <label>Вставить данные (CSV или JSON массив)</label>
+            <textarea id="pasteArea" placeholder='[ {"Код населённого пункта":10162, ...}, ... ] \nили CSV с заголовком'></textarea>
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <div class="row">
+              <button class="btn" id="btnLoadText" style="flex:1">Загрузить из текста</button>
+              <button class="btn ghost" id="btnDemo" style="flex:1">Загрузить демо-набор</button>
+            </div>
+          </div>
+        </div>
+        <div class="footer">Подходящие источники с CORS: GitHub RAW, Google Sheets «Опубликовать в Интернете → CSV», любые статические хостинги. Если URL не грузится — проблема CORS на стороне источника.</div>
+      </details>
+
+      <details style="margin-top:10px">
+        <summary>Поделиться конфигом</summary>
+        <div class="row" style="margin-top:8px">
+          <div>
+            <label>Ссылка (включает URL источника и настройки)</label>
+            <input id="shareLink" readonly />
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button class="btn ok" id="btnCopyLink">Копировать ссылку</button>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- Настройки -->
+    <section class="card" style="grid-column: span 12">
+      <h3>Настройки расчёта</h3>
+      <div class="row">
+        <div><label>Размер выборки (N)</label><input id="inputN" type="number" min="1" step="1" value="400" /></div>
+        <div><label>Метод округления</label>
+          <select id="rounding">
+            <option value="largestRemainder">Наибольшие остатки (Хэмильтон)</option>
+            <option value="round">round</option>
+            <option value="floor">floor</option>
+            <option value="ceil">ceil</option>
+          </select>
+        </div>
+        <div><label>Минимум на ячейку</label><input id="minPerCell" type="number" min="0" step="1" value="0" /></div>
+      </div>
+      <div class="row">
+        <div><label>Измерение 1 (название)</label><select id="dim1"></select></div>
+        <div><label>Измерение 2 (название, опц.)</select><select id="dim2"></select></div>
+        <div><label>Измерение 3 (название, опц.)</label><select id="dim3"></select></div>
+      </div>
+    </section>
+
+    <!-- Фильтры -->
+    <section class="card" style="grid-column: span 12">
+      <h3>Фильтры</h3>
+      <div id="filters" class="row"></div>
+    </section>
+
+    <!-- KPI -->
+    <section class="card" style="grid-column: span 12">
+      <h3>Итоги</h3>
+      <div class="kpis">
+        <div class="kpi"><div class="v" id="kpiN">—</div><div class="l">Размер выборки</div></div>
+        <div class="kpi"><div class="v" id="kpiCells">—</div><div class="l">Ячеек</div></div>
+        <div class="kpi"><div class="v" id="kpiCoverageW">—</div><div class="l">Покрытие городского населения</div></div>
+        <div class="kpi"><div class="v" id="kpiSum">—</div><div class="l">Сумма квот</div></div>
+      </div>
+    </section>
+
+    <!-- Таблица -->
+    <section class="card" style="grid-column: span 12">
+      <h3>Таблица квот</h3>
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn ok" id="btnCopy" style="max-width:220px">Копировать таблицу</button>
+        <button class="btn ok" id="btnExportCSV" style="max-width:200px">Экспорт CSV</button>
+        <button class="btn ok" id="btnExportXLSX" style="max-width:220px">Экспорт XLSX</button>
+      </div>
+      <div id="tablesWrap"></div>
+      <div class="footer">При 3-м измерении таблицы выводятся блоками «Измерение 3». В XLSX добавляется колонка «Группа — изм. 3».</div>
+    </section>
+  </div>
+
+  <script>
+    // ===== Колонки под НОВЫЙ формат data.js =====
+    const COL = {
+      settlement_code: 'Код населённого пункта',
+      settlement_name: 'Населённый пункт',
+      population: 'Численность населения',
+      region_code: 'Код региона',
+      region_name: 'Регион (область)',
+      fd_code: 'Код федерального округа',
+      fd_name: 'Федеральный округ',
+      stratum_code: 'Код страты',
+      stratum_name: 'Страта'
+    };
+
+    const STRATUM_ORDER = ['Москва','Санкт-Петербург','Другой миллионник','От 500 тыс. до 1млн.','От 250 тыс. до 500 тыс.','От 100 тыс. до 250 тыс.','Менее 100тыс'];
+
+    const state = { raw: [], filtered: [], columns: [], dims: [null,null,null], weightCol: COL.population, filters: {}, lastRender: { flatRows: [] }, sourceURL: '' };
+    const $ = (s, r=document)=> r.querySelector(s); const $$=(s,r=document)=> Array.from(r.querySelectorAll(s));
+    const isNum = v=> typeof v==='number' && Number.isFinite(v);
+    const toNum = v=> (v===''||v==null)? null : (typeof v==='number'? v : Number(String(v).replace(/\s|\u00A0/g,'')));
+    const sum = arr=> arr.reduce((s,x)=> s + (toNum(x)||0), 0);
+
+    // ===== UI helpers =====
+    function setStatus(msg){ $('#sourceStatus').textContent = msg; }
+    function updateShareLink(){
+      const u = new URL(location.href.split('#')[0]);
+      if(state.sourceURL) u.searchParams.set('data', state.sourceURL);
+      const d1=$('#dim1').value||''; const d2=$('#dim2').value||''; const d3=$('#dim3').value||'';
+      if(d1) u.searchParams.set('d1', d1); if(d2) u.searchParams.set('d2', d2); if(d3) u.searchParams.set('d3', d3);
+      u.searchParams.set('N', $('#inputN').value); u.searchParams.set('round', $('#rounding').value); u.searchParams.set('min', $('#minPerCell').value);
+      // фильтры (укороченно): f_col=val1|val2
+      Object.entries(state.filters||{}).forEach(([col,set])=>{ if(set && set.size){ u.searchParams.set('f_'+encodeURIComponent(col), [...set].map(v=> encodeURIComponent(v)).join('|')); } });
+      $('#shareLink').value = u.toString();
+    }
+
+    // ===== Загрузка из разных источников =====
+    function inferColumns(rows){ const set=new Set(); rows.slice(0,1000).forEach(r=> Object.keys(r||{}).forEach(k=> set.add(k))); return [...set]; }
+    function useRows(rows,label,url){
+      state.raw = rows.filter(Boolean); state.filtered = state.raw.slice(); state.columns = inferColumns(state.raw);
+      $('#rowsCount').textContent = state.raw.length.toLocaleString('ru'); $('#colsCount').textContent = state.columns.length.toLocaleString('ru');
+      setStatus('Подключено: '+(label||'онлайн-источник'));
+      if(url){ state.sourceURL = url; } updateShareLink();
+      fillDims(); buildFilters(); applyFilters();
+    }
+
+    async function loadFromURL(url){
+      try{
+        setStatus('Загружаю по URL…');
+        const res = await fetch(url, {mode:'cors'});
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const ct = res.headers.get('content-type')||''; const ab = await res.arrayBuffer();
+        let rows=[];
+        if(ct.includes('application/json') || /\.json(\?|$)/i.test(url)){
+          const txt = new TextDecoder('utf-8').decode(new Uint8Array(ab)); const json = JSON.parse(txt); rows = Array.isArray(json)? json : (json.data||[]);
+        } else if(ct.includes('csv') || /\.csv(\?|$)/i.test(url) || /text\//.test(ct)){
+          const wb = XLSX.read(ab, {type:'array'}); const ws = wb.Sheets[wb.SheetNames[0]]; rows = XLSX.utils.sheet_to_json(ws,{defval:''});
+        } else {
+          // пробуем как XLSX/XLS
+          const wb = XLSX.read(ab, {type:'array'}); const ws = wb.Sheets[wb.SheetNames[0]]; rows = XLSX.utils.sheet_to_json(ws,{defval:''});
+        }
+        useRows(rows, new URL(url).hostname, url);
+      }catch(e){ console.error(e); setStatus('Ошибка загрузки URL'); alert('Не удалось загрузить по URL. Возможно, CORS запрещён или формат не распознан. Подробнее в консоли.'); }
+    }
+
+    function loadFromText(text){
+      try{
+        const trimmed = text.trim(); let rows=[];
+        if(trimmed.startsWith('{') || trimmed.startsWith('[')){
+          const json = JSON.parse(trimmed); rows = Array.isArray(json)? json : (json.data||[]);
+        } else {
+          const wb = XLSX.read(trimmed, {type:'string'}); const ws = wb.Sheets[wb.SheetNames[0]]; rows = XLSX.utils.sheet_to_json(ws,{defval:''});
+        }
+        useRows(rows,'вставка');
+      }catch(e){ console.error(e); alert('Не удалось распарсить текст. Проверьте, что это JSON массив или CSV с заголовком.'); }
+    }
+
+    function readFile(file){
+      const ext=file.name.split('.').pop().toLowerCase(); const reader=new FileReader();
+      if(ext==='json'){ reader.onload=()=>{ const rows=JSON.parse(reader.result); useRows(Array.isArray(rows)?rows:(rows.data||[]), file.name); }; reader.readAsText(file,'utf-8'); }
+      else if(['csv','xlsx','xls'].includes(ext)){ reader.onload=()=>{ const wb=XLSX.read(reader.result,{type:'binary'}); const ws=wb.Sheets[wb.SheetNames[0]]; const json=XLSX.utils.sheet_to_json(ws,{defval:''}); useRows(json, file.name); }; reader.readAsBinaryString(file); }
+      else alert('Неподдерживаемый формат: '+ext);
+    }
+
+    // ===== Фильтры и измерения =====
+    function sortValues(col, arr){
+      if(!/\bСтрата\b/i.test(col)) return arr.sort((a,b)=> String(a).localeCompare(String(b),'ru'));
+      const idx = new Map(STRATUM_ORDER.map((v,i)=> [v.replace(/[ .]/g,'').toLowerCase(), i]));
+      const key = s=> String(s).replace(/[ .]/g,'').toLowerCase();
+      return arr.slice().sort((a,b)=>{ const ia=idx.get(key(a)); const ib=idx.get(key(b)); if(ia!=null && ib!=null) return ia-ib; if(ia!=null) return -1; if(ib!=null) return 1; return String(a).localeCompare(String(b),'ru'); });
+    }
+
+    function buildFilters(){
+      const wrap = $('#filters'); wrap.innerHTML='';
+      const strCols = state.columns.filter(c=> !state.raw.some(r=> isNum(toNum(r[c])) ));
+      strCols.forEach(col=>{
+        const values = Array.from(new Set(state.raw.map(r=> r[col]).filter(v=> v!=='' && v!=null)));
+        const sorted = sortValues(col, values);
+        const box = document.createElement('div'); box.innerHTML = `<label>${col}</label><select data-col="${col}" multiple size="7"></select>`;
+        const sel = $('select', box);
+        sorted.forEach(v=>{ const o=document.createElement('option'); o.value=String(v); o.textContent=String(v); sel.appendChild(o); });
+        sel.addEventListener('change', ()=>{ const chosen = Array.from(sel.selectedOptions).map(o=>o.value); if(chosen.length) state.filters[col] = new Set(chosen); else delete state.filters[col]; applyFilters(); updateShareLink(); });
+        wrap.appendChild(box);
+      });
+    }
+
+    function applyFilters(){
+      const entries=Object.entries(state.filters||{});
+      state.filtered = !entries.length? state.raw.slice(): state.raw.filter(r=>{ for(const [c,s] of entries){ if(!s.has(String(r[c]))) return false; } return true; });
+      updateCoverageWeighted(); recomputeNow();
+    }
+
+    function stringColumns(){ return state.columns.filter(c=> !state.raw.some(r=> isNum(toNum(r[c])) )); }
+    function fillDims(){
+      const names = stringColumns();
+      const put = (sel, list, allowEmpty)=>{ const el=$(sel); el.innerHTML=''; if(allowEmpty){ const o=document.createElement('option'); o.value=''; o.textContent='—'; el.appendChild(o);} list.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; el.appendChild(o); }); };
+      put('#dim1', names, false); put('#dim2', names, true); put('#dim3', names, true);
+      // дефолты: Федеральный округ + Страта
+      $('#dim1').value = names.includes(COL.fd_name) ? COL.fd_name : (names[0]||'');
+      $('#dim2').value = names.includes(COL.stratum_name) ? COL.stratum_name : '';
+      $('#dim3').value = '';
+      ['#dim1','#dim2','#dim3','#inputN','#rounding','#minPerCell'].forEach(sel=> $(sel).addEventListener('change', ()=>{ recomputeNow(); updateShareLink(); }));
+      ['#inputN','#minPerCell'].forEach(sel=> $(sel).addEventListener('input', ()=>{ recomputeNow(); updateShareLink(); }));
+    }
+
+    // ===== Группировка и аллокация =====
+    function groupByDims(rows, dims){
+      const map = new Map(); const keyOf = r => JSON.stringify(dims.map(d=> d? (r[d] ?? '—') : '—'));
+      rows.forEach(r=>{ const k=keyOf(r); if(!map.has(k)) map.set(k,{vals:dims.map(d=> d? (r[d] ?? '—') : '—'), w:0}); map.get(k).w += toNum(r[state.weightCol])||0; });
+      const groups=[...map.values()]; const totalW=groups.reduce((s,g)=> s+g.w,0);
+      let buckets=[{g:'', rows:groups}]; if(dims[2]){ const by=new Map(); groups.forEach(g=>{ const key=g.vals[2]; if(!by.has(key)) by.set(key,[]); by.get(key).push(g); }); buckets=[...by.entries()].map(([g,rows])=>({g,rows})); buckets.sort((a,b)=> String(a.g).localeCompare(String(b.g),'ru')); }
+      return {groups,totalW,buckets};
+    }
+
+    function allocate(groups,N,method){ const total=groups.reduce((s,g)=>s+g.w,0); const raw=groups.map(g=> total? g.w/total*N : 0);
+      if(method==='round') return groups.map((g,i)=>({...g,n:Math.round(raw[i])}));
+      if(method==='floor') return groups.map((g,i)=>({...g,n:Math.floor(raw[i])}));
+      if(method==='ceil')  return groups.map((g,i)=>({...g,n:Math.ceil(raw[i])}));
+      const base=raw.map(x=>Math.floor(x)); let alloc=base.reduce((s,x)=>s+x,0); const order=raw.map((x,i)=>({i,f:x-Math.floor(x)})).sort((a,b)=>b.f-a.f); for(let k=0;k<N-alloc;k++) base[order[k%order.length].i]++; return groups.map((g,i)=>({...g,n:base[i]})); }
+
+    function enforceMin(groups,minN,N){ if(!minN) return groups; const out=groups.map(g=>({...g})); let add=0; out.forEach(g=>{ if(g.n<minN){ add+= (minN-g.n); g.n=minN; } }); let extra= out.reduce((s,g)=>s+g.n,0) - N;
+      if(extra>0){ const ord=out.slice().sort((a,b)=>b.n-a.n); let p=0; while(extra>0 && p<ord.length){ if(ord[p].n>minN){ ord[p].n--; extra--; } else p++; } }
+      if(extra<0){ let rest=-extra; const ord=groups.map((g,i)=>({i,w:g.w})).sort((a,b)=>b.w-a.w); let j=0; while(rest>0){ out[ord[j%ord.length].i].n++; rest--; j++; } }
+      return out; }
+
+    function attachCodes(rows, dimName){
+      const pairs = new Map([[COL.region_name, COL.region_code],[COL.fd_name, COL.fd_code],[COL.stratum_name, COL.stratum_code],[COL.settlement_name, COL.settlement_code]]);
+      const codeCol = pairs.get(dimName) || null; const nameCol = dimName; const dict=new Map(); if(codeCol){ rows.forEach(r=>{ const name=r[nameCol]; const code=r[codeCol]; if(name!=null && code!=null && !dict.has(String(name))) dict.set(String(name), String(code)); }); }
+      return {dict};
+    }
+
+    function renderTables(dims,buckets,allocMap,totalW){
+      const wrap=$('#tablesWrap'); wrap.innerHTML=''; state.lastRender.flatRows=[]; const [d1,d2,d3]=[dims[0]||'',dims[1]||'',dims[2]||'']; const has2=!!d2; const has3=!!d3;
+      const map1=attachCodes(state.filtered,d1); const map2= has2? attachCodes(state.filtered,d2):{dict:new Map()};
+      buckets.forEach(({g,rows})=>{
+        if(has3){ const h=document.createElement('div'); h.className='group'; h.textContent=`${d3}: ${g}`; wrap.appendChild(h); }
+        const table=document.createElement('table'); const thead=document.createElement('thead'); const trh=document.createElement('tr');
+        ['Код — изм. 1','Название — изм. 1','Код — изм. 2','Название — изм. 2','Квота N','Квота %'].forEach(h=>{ const th=document.createElement('th'); th.textContent=h; trh.appendChild(th); }); thead.appendChild(trh); table.appendChild(thead);
+        const tbody=document.createElement('tbody');
+        rows.forEach(r=>{ const key = JSON.stringify(r.vals); const n = allocMap.get(key)||0; const share = totalW? (r.w/totalW):0; const d1Name=r.vals[0]; const d2Name=has2? r.vals[1] : '';
+          const d1Code=map1.dict.get(String(d1Name))||''; const d2Code=has2? (map2.dict.get(String(d2Name))||'') : '';
+          const tr=document.createElement('tr'); [d1Code,d1Name,d2Code,d2Name,n,(share*100).toFixed(1)+'%'].forEach(v=>{ const td=document.createElement('td'); td.textContent=String(v); tr.appendChild(td); }); tbody.appendChild(tr);
+          state.lastRender.flatRows.push({group:has3?g:'', d1Code,d1Name,d2Code,d2Name, n, sharePct:(share*100).toFixed(1)+'%'});
+        }); table.appendChild(tbody); wrap.appendChild(table);
+      });
+      $('#kpiCells').textContent = allocMap.size; $('#kpiSum').textContent = [...allocMap.values()].reduce((s,x)=>s+x,0).toLocaleString('ru');
+    }
+
+    function updateCoverageWeighted(){ const wcol = state.weightCol; const rawW = sum(state.raw.map(r=> r[wcol])); const filW = sum(state.filtered.map(r=> r[wcol])); const pct = rawW ? (filW/rawW*100) : 0; $('#kpiCoverageW').textContent = pct.toFixed(1)+'%'; }
+
+    // ===== Экспорт и копирование =====
+    function exportCSV(){ const has3 = !!state.dims[2]; const headers = has3 ? ['Группа — изм. 3','Код — изм. 1','Название — изм. 1','Код — изм. 2','Название — изм. 2','Квота N','Квота %'] : ['Код — изм. 1','Название — изм. 1','Код — изм. 2','Название — изм. 2','Квота N','Квота %']; const rows = state.lastRender.flatRows.map(r=> has3 ? [r.group,r.d1Code,r.d1Name,r.d2Code,r.d2Name,r.n,r.sharePct] : [r.d1Code,r.d1Name,r.d2Code,r.d2Name,r.n,r.sharePct]); const esc = s=> String(s).includes(';')||String(s).includes('"')? '"'+String(s).replace(/"/g,'""')+'"' : String(s); const lines = [headers.join(';')].concat(rows.map(r=> r.map(esc).join(';'))); const csv = '\uFEFF' + lines.join('\n'); const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='quotas.csv'; a.click(); URL.revokeObjectURL(url); }
+
+    function exportXLSX(){ if (typeof XLSX === 'undefined' || !XLSX.utils){ alert('Ошибка: библиотека XLSX не загружена.'); return; } const has3 = !!state.dims[2]; const aoa = []; if(has3){ aoa.push(['Группа — изм. 3','Код — изм. 1','Название — изм. 1','Код — изм. 2','Название — изм. 2','Квота N','Квота %']); state.lastRender.flatRows.forEach(r=> aoa.push([r.group,r.d1Code,r.d1Name,r.d2Code,r.d2Name,r.n,r.sharePct])); } else { aoa.push(['Код — изм. 1','Название — изм. 1','Код — изм. 2','Название — изм. 2','Квота N','Квота %']); state.lastRender.flatRows.forEach(r=> aoa.push([r.d1Code,r.d1Name,r.d2Code,r.d2Name,r.n,r.sharePct])); } const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:18},{wch:28},{wch:18},{wch:28},{wch:10},{wch:10}]; const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Quotas'); const meta = [{ N:Number($('#inputN').value), rounding:$('#rounding').value, minPerCell:Number($('#minPerCell').value), dims:state.dims, weightCol:state.weightCol, source: state.sourceURL || '—', filters:Object.fromEntries(Object.entries(state.filters||{}).map(([k,set])=> [k,[...set]])) }]; const wsMeta = XLSX.utils.json_to_sheet(meta); XLSX.utils.book_append_sheet(wb, wsMeta, 'Meta'); try { (typeof XLSX.writeFileXLSX==='function'? XLSX.writeFileXLSX : XLSX.writeFile)(wb, 'quotas.xlsx'); } catch (err) { try { const wbout = XLSX.write(wb, { bookType:'xlsx', type:'array' }); const blob = new Blob([wbout], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='quotas.xlsx'; a.click(); URL.revokeObjectURL(url); } catch(e){ console.error(e); alert('Не удалось сформировать XLSX. Проверьте консоль.'); } } }
+
+    async function copyTable(){ const has3 = !!state.dims[2]; const headers = has3 ? ['Группа — изм. 3','Код — изм. 1','Название — изм. 1','Код — изм. 2','Название — изм. 2','Квота N','Квота %'] : ['Код — изм. 1','Название — изм. 1','Код — изм. 2','Название — изм. 2','Квота N','Квота %']; const rows = state.lastRender.flatRows.map(r=> has3 ? [r.group,r.d1Code,r.d1Name,r.d2Code,r.d2Name,r.n,r.sharePct] : [r.d1Code,r.d1Name,r.d2Code,r.d2Name,r.n,r.sharePct]); const tsv = [headers.join('\t'), ...rows.map(r=> r.join('\t'))].join('\n'); await navigator.clipboard.writeText(tsv); alert('Таблица скопирована в буфер обмена'); }
+
+    // ===== Пересчёт =====
+    function recomputeNow(){ const dims=[$('#dim1').value,$('#dim2').value||null,$('#dim3').value||null].filter(Boolean); state.dims=dims; if(!state.filtered.length || !dims.length){ $('#tablesWrap').innerHTML=''; $('#kpiCells').textContent='0'; $('#kpiSum').textContent='0'; return; } const {groups,totalW,buckets} = groupByDims(state.filtered, dims); const N = Number($('#inputN').value)||0; const method=$('#rounding').value; let alloc = allocate(groups,N,method); alloc = enforceMin(alloc, Number($('#minPerCell').value)||0, N); $('#kpiN').textContent = N.toLocaleString('ru'); const map = new Map(alloc.map(g => [JSON.stringify(g.vals), g.n])); renderTables(dims,buckets,map,totalW); }
+
+    // ===== DEMO =====
+    const DEMO = [
+      {"Код населённого пункта":10162,"Населённый пункт":"Абаза, Республика Хакасия","Численность населения":11823,"Код региона":2020,"Регион (область)":"Республика Хакасия","Код федерального округа":5,"Федеральный округ":"Сибирский","Код страты":100546,"Страта":"Менее 100тыс"},
+      {"Код населённого пункта":10163,"Населённый пункт":"Абакан, Республика Хакасия","Численность населения":187239,"Код региона":2020,"Регион (область)":"Республика Хакасия","Код федерального округа":5,"Федеральный округ":"Сибирский","Код страты":100544,"Страта":"От 100 тыс. до 250 тыс."},
+      {"Код населённого пункта":20001,"Населённый пункт":"Москва","Численность населения":12615882,"Код региона":7700,"Регион (область)":"Москва","Код федерального округа":7,"Федеральный округ":"Центральный","Код страты":100540,"Страта":"Москва"},
+      {"Код населённого пункта":40001,"Населённый пункт":"Санкт-Петербург","Численность населения":5384342,"Код региона":7800,"Регион (область)":"Санкт-Петербург","Код федерального округа":1,"Федеральный округ":"Северо-Западный","Код страты":100541,"Страта":"Санкт-Петербург"}
+    ];
+
+    // ===== Init =====
+    window.addEventListener('DOMContentLoaded', ()=>{
+      // кнопки
+      $('#fileInput').addEventListener('change', e=>{ const f=e.target.files?.[0]; if(f) readFile(f); });
+      $('#btnLoadURL').addEventListener('click', ()=>{ const u=$('#urlInput').value.trim(); if(u) loadFromURL(u); });
+      $('#btnLoadText').addEventListener('click', ()=>{ const t=$('#pasteArea').value; if(t.trim()) loadFromText(t); });
+      $('#btnDemo').addEventListener('click', ()=> useRows(DEMO,'демо'));
+      $('#btnExportCSV').addEventListener('click', ()=>{ if(!state.lastRender.flatRows.length) return alert('Сначала рассчитайте квоты'); exportCSV(); });
+      $('#btnExportXLSX').addEventListener('click', ()=>{ if(!state.lastRender.flatRows.length) return alert('Сначала рассчитайте квоты'); exportXLSX(); });
+      $('#btnCopy').addEventListener('click', ()=>{ if(!state.lastRender.flatRows.length) return alert('Сначала рассчитайте квоты'); copyTable(); });
+      $('#btnCopyLink').addEventListener('click', async ()=>{ if(!$('#shareLink').value) updateShareLink(); await navigator.clipboard.writeText($('#shareLink').value); alert('Ссылка скопирована'); });
+
+      // автозагрузка из query
+      const sp=new URLSearchParams(location.search); const dataURL=sp.get('data'); const d1=sp.get('d1'); const d2=sp.get('d2'); const d3=sp.get('d3'); const N=sp.get('N'); const round=sp.get('round'); const min=sp.get('min');
+      // фильтры f_<col>=v1|v2
+      const fEntries=[...sp.entries()].filter(([k])=>k.startsWith('f_'));
+
+      if(dataURL){ $('#urlInput').value=dataURL; loadFromURL(dataURL).then(()=>{ setTimeout(()=>{ if(d1) $('#dim1').value=d1; if(d2) $('#dim2').value=d2; if(d3) $('#dim3').value=d3; if(N) $('#inputN').value=Number(N)||400; if(round) $('#rounding').value=round; if(min) $('#minPerCell').value=Number(min)||0; // восстановить фильтры
+            fEntries.forEach(([k,v])=>{ const col=decodeURIComponent(k.slice(2)); const set=new Set(v.split('|').map(x=> decodeURIComponent(x))); state.filters[col]=set; }); buildFilters(); // применить выбранные значения в UI
+            $$('#filters select').forEach(sel=>{ const col=sel.dataset.col; const set=state.filters[col]; if(set) Array.from(sel.options).forEach(opt=> opt.selected = set.has(opt.value)); }); applyFilters(); updateShareLink(); }, 50); }); }
+    });
+  </script>
+</body>
+</html>
