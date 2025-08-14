@@ -183,6 +183,30 @@
 
     // ===== UI helpers =====
     function setStatus(msg){ $('#sourceStatus').textContent = msg; }
+    // Декодер текста с авто-подбором кодировки (UTF-8 → win-1251)
+    function decodeBest(ab){
+      let txt;
+      try { txt = new TextDecoder('utf-8',{fatal:false}).decode(new Uint8Array(ab)); } catch(e){ txt = null; }
+      const bad = (txt||'').match(/�/g)?.length || 0;
+      if(!txt || bad > (txt.length*0.01)){
+        try { txt = new TextDecoder('windows-1251').decode(new Uint8Array(ab)); } catch(e){}
+      }
+      return txt || '';
+    }
+    // Разбор CSV-строки: пытаемся по умолчанию, при необходимости подбираем разделитель ; или 	
+    function parseCSVText(txt){
+      let wb = XLSX.read(txt, {type:'string'});
+      let ws = wb.Sheets[wb.SheetNames[0]];
+      let rows = XLSX.utils.sheet_to_json(ws,{defval:''});
+      if(rows.length && Object.keys(rows[0]||{}).length === 1){
+        const first = txt.split(/
+?
+/,1)[0] || '';
+        const sep = first.includes(';') ? ';' : (first.includes('	') ? '	' : null);
+        if(sep){ wb = XLSX.read(txt, {type:'string', FS: sep}); ws = wb.Sheets[wb.SheetNames[0]]; rows = XLSX.utils.sheet_to_json(ws,{defval:''}); }
+      }
+      return rows;
+    }
     function updateShareLink(){
       const u = new URL(location.href.split('#')[0]);
       if(state.sourceURL) u.searchParams.set('data', state.sourceURL);
@@ -226,12 +250,14 @@
         const ct = res.headers.get('content-type')||''; const ab = await res.arrayBuffer();
         let rows=[];
         if(ct.includes('application/json') || /\.json(\?|$)/i.test(url)){
-          const txt = new TextDecoder('utf-8').decode(new Uint8Array(ab)); const json = JSON.parse(txt); rows = Array.isArray(json)? json : (json.data||[]);
+          const txt = decodeBest(ab); const json = JSON.parse(txt); rows = Array.isArray(json)? json : (json.data||[]);
         } else if(ct.includes('csv') || /\.csv(\?|$)/i.test(url) || /text\//.test(ct)){
-          const wb = XLSX.read(ab, {type:'array'}); const ws = wb.Sheets[wb.SheetNames[0]]; rows = XLSX.utils.sheet_to_json(ws,{defval:''});
+          const txt = decodeBest(ab); rows = parseCSVText(txt);
         } else {
-          // пробуем как XLSX/XLS
+          // Пробуем как XLSX/XLS
           const wb = XLSX.read(ab, {type:'array'}); const ws = wb.Sheets[wb.SheetNames[0]]; rows = XLSX.utils.sheet_to_json(ws,{defval:''});
+          // Если в xlsx не получилось, пробуем как текст CSV
+          if(!rows.length){ const txt = decodeBest(ab); rows = parseCSVText(txt); }
         }
         useRows(rows, new URL(url).hostname, url);
       }catch(e){ console.error(e); setStatus('Ошибка загрузки URL'); alert('Не удалось загрузить по URL. Возможно, CORS запрещён или формат не распознан. Подробнее в консоли.'); }
@@ -243,7 +269,7 @@
         if(trimmed.startsWith('{') || trimmed.startsWith('[')){
           const json = JSON.parse(trimmed); rows = Array.isArray(json)? json : (json.data||[]);
         } else {
-          const wb = XLSX.read(trimmed, {type:'string'}); const ws = wb.Sheets[wb.SheetNames[0]]; rows = XLSX.utils.sheet_to_json(ws,{defval:''});
+          rows = parseCSVText(trimmed);
         }
         useRows(rows,'вставка');
       }catch(e){ console.error(e); alert('Не удалось распарсить текст. Проверьте, что это JSON массив или CSV с заголовком.'); }
