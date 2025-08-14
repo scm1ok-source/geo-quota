@@ -204,7 +204,21 @@
       fillDims(); buildFilters(); applyFilters();
     }
 
-    async function loadFromURL(url){
+    function normalizeDataURL(url){
+      try{
+        const u = new URL(url);
+        // 1) GitHub RAW с /refs/heads/<branch>/ → нормализуем к /<branch>/
+        const m = url.match(/^https?:\/\/raw\.githubusercontent\.com\/([^\/]+)\/([^\/]+)\/refs\/heads\/([^\/]+)\/(.+)$/);
+        if(m){ return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}/${m[4]}`; }
+        // 2) Ссылка вида github.com/.../blob/<branch>/path → в RAW
+        const m2 = url.match(/^https?:\/\/github\.com\/([^\/]+)\/([^\/?#]+)\/(?:blob|raw)\/([^\/]+)\/(.+)$/);
+        if(m2){ return `https://raw.githubusercontent.com/${m2[1]}/${m2[2]}/${m2[3]}/${m2[4]}`; }
+        // 3) Оставляем как есть для jsDelivr/GitHub RAW/др.
+        return url;
+      }catch(e){ return url; }
+    }
+
+    async function loadFromURL(url){ url = normalizeDataURL(url);
       try{
         setStatus('Загружаю по URL…');
         const res = await fetch(url, {mode:'cors'});
@@ -350,7 +364,7 @@
     window.addEventListener('DOMContentLoaded', ()=>{
       // кнопки
       $('#fileInput').addEventListener('change', e=>{ const f=e.target.files?.[0]; if(f) readFile(f); });
-      $('#btnLoadURL').addEventListener('click', ()=>{ const u=$('#urlInput').value.trim(); if(u) loadFromURL(u); });
+      $('#btnLoadURL').addEventListener('click', ()=>{ let u=$('#urlInput').value.trim(); if(!u) return; u = normalizeDataURL(u); $('#urlInput').value=u; loadFromURL(u); });
       $('#btnLoadText').addEventListener('click', ()=>{ const t=$('#pasteArea').value; if(t.trim()) loadFromText(t); });
       $('#btnDemo').addEventListener('click', ()=> useRows(DEMO,'демо'));
       $('#btnExportCSV').addEventListener('click', ()=>{ if(!state.lastRender.flatRows.length) return alert('Сначала рассчитайте квоты'); exportCSV(); });
