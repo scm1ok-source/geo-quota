@@ -194,8 +194,80 @@
       return txt || '';
     }
     // Разбор CSV-строки: пытаемся по умолчанию, при необходимости подбираем разделитель ; или 	
-    function parseCSVText(txt){
-      txt = txt.replace(/^﻿/, ''); // remove BOM
+    <script>
+  function parseCSVText(txt){
+    // Надёжный CSV-парсер: переносы строк ВНУТРИ "кавычек", разделители ; / \t / ,
+    txt = txt.replace(/^\uFEFF/, ''); // BOM
+
+    // 1) Ряды: разбиваем на строки, уважая кавычки и CRLF
+    const rowsRaw = [];
+    let cur = '', inQ = false;
+    for (let i=0; i<txt.length; i++){
+      const ch = txt[i];
+      if (ch === '"'){
+        if (inQ && txt[i+1] === '"'){ cur += '"'; i++; }
+        else { inQ = !inQ; cur += ch; }
+      } else if ((ch === '\n' || ch === '\r') && !inQ){
+        if (ch === '\r' && txt[i+1] === '\n') i++; // CRLF
+        rowsRaw.push(cur); cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    if (cur.length) rowsRaw.push(cur);
+    const rows = rowsRaw.map(r=> r.trim()).filter(r=> r.length>0);
+    if (!rows.length) return [];
+
+    // 2) Определяем разделитель по первой строке (вне кавычек)
+    function countSep(s, sep){
+      let cnt=0, q=false;
+      for(let i=0;i<s.length;i++){
+        const ch=s[i];
+        if(ch=== '"'){ if(q && s[i+1]=== '"'){ i++; } else q=!q; }
+        else if(ch=== sep && !q){ cnt++; }
+      }
+      return cnt;
+    }
+    const first = rows[0];
+    const candidates = [';','\t',','];
+    let sep = candidates[0], best = -1;
+    candidates.forEach(c=>{ const n=countSep(first,c); if(n>best){ best=n; sep=c; }});
+
+    // 3) Разбираем строку на ячейки (кавычки + экранирование)
+    function parseLine(line){
+      const out=[]; let field='', q=false;
+      for(let i=0;i<line.length;i++){
+        const ch=line[i];
+        if(ch === '"'){
+          if(q && line[i+1] === '"'){ field+='"'; i++; }
+          else { q=!q; }
+        } else if(ch === sep && !q){
+          out.push(field); field='';
+        } else {
+          field += ch;
+        }
+      }
+      out.push(field);
+      // чистим внешние кавычки и переводим переносы в пробел
+      return out.map(s => s.replace(/^"|"$/g,'').replace(/\r?\n/g,' ').trim());
+    }
+
+    // 4) Заголовки + данные
+    let header = parseLine(first);
+    while (header.length && header[header.length-1] === '') header.pop(); // убираем пустой хвост
+    const out = [];
+    for (let i=1; i<rows.length; i++){
+      const cells = parseLine(rows[i]);
+      while (cells.length > header.length) cells.pop();
+      const obj = {};
+      for (let j=0; j<header.length; j++) obj[header[j]] = (cells[j]!==undefined) ? cells[j] : '';
+      if (Object.values(obj).some(v => String(v).trim() !== '')) out.push(obj);
+    }
+    return out;
+  }
+</script>
+  
+      // remove BOM
       const firstLine = txt.split(/
 ?
 /,1)[0] || '';
