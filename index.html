@@ -25207,7 +25207,7 @@ function fillDims(){
   const strCols = state.columns.filter(c=> !state.raw.some(r=> isNum(toNum(r[c])) ));
   const put=(sel,list,allowEmpty)=>{ const el=$(sel); el.innerHTML=''; if(allowEmpty){const o=document.createElement('option'); o.value=''; o.textContent='—'; el.appendChild(o);} list.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; el.appendChild(o); }); };
   put('#dim1', strCols, false); put('#dim2', strCols, true); put('#dim3', strCols, true);
-  $('#dim1').value = strCols[0]||''; $('#dim2').value = ''; $('#dim3').value = '';
+ $('#dim1').value = strCols.includes('Страта') ? 'Страта' : (strCols[0] || ''); $('#dim2').value = ''; $('#dim3').value = '';
   ['#dim1','#dim2','#dim3'].forEach(sel=> $(sel).addEventListener('change', recomputeNow));
   ['#inputN','#rounding','#minPerCell'].forEach(sel=> $(sel).addEventListener('input', recomputeNow));
 }
