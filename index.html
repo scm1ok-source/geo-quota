@@ -1,10 +1,10 @@
-<!-- quotas-calculator.html START -->
+<!-- quotas-calculator2.html START -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Калькулятор квот для исследований — Online Version</title>
+  <title>Калькулятор квот для исследований</title>
   <style>
     :root{ --bg:#0b1020; --panel:#0f1630; --muted:#9fb0d0; --text:#e8eeff; --accent:#6aa5ff; --ok:#3ad29f; --warn:#ffce5c; --err:#ff7a7a; }
     *{box-sizing:border-box}
@@ -37,13 +37,11 @@
     .pill{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;border:1px solid #27407a;color:#cfe0ff;background:#122359;font-size:12px}
     .footer{opacity:.8;font-size:12px;margin-top:12px}
   </style>
-  <!-- SheetJS для экспорта XLSX -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
 </head>
 <body>
   <header>
     <div class="title">Калькулятор квот для исследований</div>
-    <div class="subtitle">Online-версия. Встроенные официальные данные, расчет по населению городов России, экспорт, фильтры, кастомизация.</div>
+    <div class="subtitle">Online-версия. Встроенные данные, фильтры, копирование в Excel, экспорт CSV.</div>
   </header>
   <div class="container grid cols">
     <section class="card" style="grid-column: span 12">
@@ -91,16 +89,19 @@
       <h3>Таблица квот</h3>
       <div class="row" style="margin-bottom:8px">
         <button class="btn ok" id="btnExportCSV" style="max-width:200px">Экспорт CSV</button>
-        <button class="btn ok" id="btnExportXLSX" style="max-width:220px">Экспорт XLSX</button>
+        <button class="btn ok" id="btnCopyClipboard" style="max-width:220px">Копировать в буфер</button>
       </div>
       <div id="tablesWrap"></div>
-      <div class="footer">При выборе 3-го измерения таблицы выводятся по группам «Измерение 3». В XLSX добавляется колонка «Группа — изм. 3».</div>
+      <div class="footer">При выборе 3-го измерения таблицы выводятся по группам «Измерение 3».</div>
     </section>
   </div>
-  <script>
-    // ====== ВСТРОЕННЫЕ ДАННЫЕ ГОРОДОВ ======
-const dataSet = 
-[
+
+ <!-- ====== ВСТАВЬТЕ СЮДА СВОЙ МАССИВ ДАННЫХ ====== -->
+  <script id="cityData">
+    // Вставьте свой массив cityData ниже:
+    // const cityData = [ ... ];
+  
+    const cityData = [
   {
     "Код населённого пункта": 10162,
     "Населённый пункт": "Абаза, Республика Хакасия",
@@ -25128,7 +25129,22 @@ const dataSet =
   }
 ]
 ;
-    // =========== КОНСТАНТЫ ДЛЯ КОЛОНОК ===========
+    </script>
+
+  <script>
+    // Чтение данных из шаблона-скрипта
+    function getCityData() {
+      try {
+        // Ищет глобальную переменную или парсит код внутри <script id="cityData">
+        if (typeof cityData !== "undefined") return cityData;
+        const raw = document.getElementById('cityData').textContent;
+        const match = raw.match(/const\s+cityData\s*=\s*(\[[\s\S]*?\]);/);
+        if (match) return eval(match[0]);
+        return [];
+      } catch (e) { return []; }
+    }
+
+    // ====== Остальной JS: константы, state, утилиты ======
     const COL = {
       settlement_code: 'Код населённого пункта',
       settlement_name: 'Населённый пункт',
@@ -25147,7 +25163,7 @@ const dataSet =
     const toNum = v=> (v===''||v==null)? null : (typeof v==='number'? v : Number(String(v).replace(/\s|\u00A0/g,'')));
     const sum = arr=> arr.reduce((s,x)=> s + (toNum(x)||0), 0);
 
-    // ===== Инициализация =====
+    // ====== Инициализация ======
     function inferColumns(rows){ const set=new Set(); rows.slice(0,1000).forEach(r=> Object.keys(r||{}).forEach(k=> set.add(k))); return [...set]; }
     function useRows(rows,label){
       state.raw = rows.filter(Boolean); state.filtered = state.raw.slice(); state.columns = inferColumns(state.raw);
@@ -25156,7 +25172,6 @@ const dataSet =
       $('#colsCount').textContent = state.columns.length.toLocaleString('ru');
       fillDims(); buildFilters(); applyFilters();
     }
-
     // ===== Фильтры с кастомным порядком по «Страта» =====
     const STRATUM_ORDER = ['Москва','Санкт-Петербург','Другой миллионник','От 500 тыс. до 1млн.','От 250 тыс. до 500 тыс.','От 100 тыс. до 250 тыс.','Менее 100тыс'];
     function sortValues(col, arr){
@@ -25270,7 +25285,7 @@ const dataSet =
       const pct = rawW ? (filW/rawW*100) : 0; $('#kpiCoverageW').textContent = pct.toFixed(1)+'%';
     }
 
-    // ===== Экспорт =====
+    // ===== Экспорт CSV =====
     function exportCSV(){
       const has3 = !!state.dims[2];
       const headers = has3 ? ['Группа — изм. 3','Код — изм. 1','Название — изм. 1','Код — изм. 2','Название — изм. 2','Квота N','Квота %']
@@ -25281,28 +25296,18 @@ const dataSet =
       const csv = '\uFEFF' + lines.join('\n');
       const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='quotas.csv'; a.click(); URL.revokeObjectURL(url);
     }
-    function exportXLSX(){
-      if (typeof XLSX === 'undefined' || !XLSX.utils){ alert('Ошибка: библиотека XLSX не загружена.'); return; }
+
+    // ===== Копировать в буфер =====
+    function copyToClipboard(){
       const has3 = !!state.dims[2];
-      const aoa = [];
-      if(has3){ aoa.push(['Группа — изм. 3','Код — изм. 1','Название — изм. 1','Код — изм. 2','Название — изм. 2','Квота N','Квота %']);
-        state.lastRender.flatRows.forEach(r=> aoa.push([r.group,r.d1Code,r.d1Name,r.d2Code,r.d2Name,r.n,r.sharePct]));
-      } else {
-        aoa.push(['Код — изм. 1','Название — изм. 1','Код — изм. 2','Название — изм. 2','Квота N','Квота %']);
-        state.lastRender.flatRows.forEach(r=> aoa.push([r.d1Code,r.d1Name,r.d2Code,r.d2Name,r.n,r.sharePct]));
-      }
-      const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:18},{wch:28},{wch:18},{wch:28},{wch:10},{wch:10}];
-      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Quotas');
-      const meta = [{ N:Number($('#inputN').value), rounding:$('#rounding').value, minPerCell:Number($('#minPerCell').value), dims:state.dims, weightCol:state.weightCol, source:'builtin', filters:Object.fromEntries(Object.entries(state.filters||{}).map(([k,set])=> [k,[...set]])) }];
-      const wsMeta = XLSX.utils.json_to_sheet(meta); XLSX.utils.book_append_sheet(wb, wsMeta, 'Meta');
-      try { (typeof XLSX.writeFileXLSX==='function'? XLSX.writeFileXLSX : XLSX.writeFile)(wb, 'quotas.xlsx'); }
-      catch (err) {
-        try {
-          const wbout = XLSX.write(wb, { bookType:'xlsx', type:'array' });
-          const blob = new Blob([wbout], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-          const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='quotas.xlsx'; a.click(); URL.revokeObjectURL(url);
-        } catch(e){ console.error(e); alert('Не удалось сформировать XLSX. Проверьте консоль.'); }
-      }
+      const headers = has3 ? ['Группа — изм. 3','Код — изм. 1','Название — изм. 1','Код — изм. 2','Название — изм. 2','Квота N','Квота %']
+                           : ['Код — изм. 1','Название — изм. 1','Код — изм. 2','Название — изм. 2','Квота N','Квота %'];
+      const rows = state.lastRender.flatRows.map(r=> has3 ? [r.group,r.d1Code,r.d1Name,r.d2Code,r.d2Name,r.n,r.sharePct] : [r.d1Code,r.d1Name,r.d2Code,r.d2Name,r.n,r.sharePct]);
+      // Копируем как TSV (Excel вставляет сразу в таблицу)
+      const tsv = [headers.join('\t'), ...rows.map(r=> r.join('\t'))].join('\n');
+      navigator.clipboard.writeText(tsv)
+        .then(()=>{ alert('Таблица скопирована в буфер обмена!\nМожно вставить в Excel, Google Sheets или Numbers.'); })
+        .catch(()=>{ alert('Не удалось скопировать. Разрешите доступ к буферу обмена.'); });
     }
 
     // ===== Пересчёт =====
@@ -25323,12 +25328,14 @@ const dataSet =
 
     // ===== Init =====
     window.addEventListener('DOMContentLoaded', ()=>{
-      useRows(dataSet,'builtin');
+      useRows(getCityData(),'builtin');
       $('#btnExportCSV').addEventListener('click', ()=>{ if(!state.lastRender.flatRows.length) return alert('Сначала рассчитайте квоты'); exportCSV(); });
-      $('#btnExportXLSX').addEventListener('click', ()=>{ if(!state.lastRender.flatRows.length) return alert('Сначала рассчитайте квоты'); exportXLSX(); });
+      $('#btnCopyClipboard').addEventListener('click', ()=>{ if(!state.lastRender.flatRows.length) return alert('Сначала рассчитайте квоты'); copyToClipboard(); });
       setTimeout(recomputeNow, 50);
     });
   </script>
 </body>
 </html>
-<!-- quotas-calculator.html END -->
+
+
+<!-- quotas-calculator2.html END -->
