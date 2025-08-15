@@ -3,11 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Калькулятор квот для исследований — Ipsos Style</title>
-  <meta name="description" content="Калькулятор квот: фильтры, кросс-таблицы, расчёт выборки, экспорт CSV/буфер обмена " />
-  <!-- SheetJS для экспорта -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <title>Калькулятор квот — Ipsos Style</title>
+  <meta name="description" content="Калькулятор квот: фильтры, кросс-таблицы, расчёт выборки, экспорт. Стиль Ipsos Comcon." />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -19,208 +16,46 @@
       --text: #2a3346;
       --border: #e2e7ef;
       --shadow: 0 2px 16px 0 #a5bad41a;
-      --ok: #3ad29f;
-      --err: #ff7a7a;
-      --warn: #ffd98d;
     }
-    html, body {
-      background: var(--main-bg);
-      color: var(--text);
-      font-family: 'Inter', Arial, sans-serif;
-      font-size: 15px;
-      margin: 0;
-    }
-    body {
-      min-height: 100vh;
-    }
-    header {
-      background: var(--card-bg);
-      box-shadow: var(--shadow);
-      padding: 28px 0 10px 0;
-      border-bottom: 2px solid var(--border);
-      margin-bottom: 18px;
-      position: sticky; top: 0; z-index: 5;
-    }
-    .header-wrap {
-      max-width: 1150px; margin: 0 auto; padding: 0 24px;
-    }
-    .title {
-      font-size: 2.1rem; font-weight: 800;
-      color: var(--accent);
-      letter-spacing: -.5px;
-      margin-bottom: 3px;
-    }
-    .subtitle {
-      color: var(--muted); font-size: 1rem;
-      margin-bottom: 6px;
-    }
-    .container {
-      max-width: 1150px;
-      margin: 0 auto;
-      padding: 0 18px 30px 18px;
-      display: grid;
-      grid-template-columns: repeat(12, 1fr);
-      gap: 16px;
-    }
-    .card {
-      background: var(--card-bg);
-      border-radius: 20px;
-      box-shadow: var(--shadow);
-      padding: 22px 18px 14px 18px;
-      border: 1.5px solid var(--border);
-      grid-column: span 12;
-      margin-bottom: 0;
-      margin-top: 0;
-    }
-    .card h3 {
-      margin: 0 0 10px 0;
-      font-size: 17px;
-      color: var(--accent);
-      font-weight: 600;
-      letter-spacing: -.2px;
-    }
-    .row {
-      display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px;
-    }
+    html, body { background: var(--main-bg); color: var(--text); font-family: 'Inter', Arial, sans-serif; font-size: 15px; margin: 0;}
+    header { background: var(--card-bg); box-shadow: var(--shadow); padding: 28px 0 10px 0; border-bottom: 2px solid var(--border); margin-bottom: 18px; position: sticky; top: 0; z-index: 5;}
+    .header-wrap { max-width: 1150px; margin: 0 auto; padding: 0 24px;}
+    .title { font-size: 2.1rem; font-weight: 800; color: var(--accent); letter-spacing: -.5px; margin-bottom: 3px;}
+    .subtitle { color: var(--muted); font-size: 1rem; margin-bottom: 6px;}
+    .container { max-width: 1150px; margin: 0 auto; padding: 0 18px 30px 18px; display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px;}
+    .card { background: var(--card-bg); border-radius: 20px; box-shadow: var(--shadow); padding: 22px 18px 14px 18px; border: 1.5px solid var(--border); grid-column: span 12;}
+    .card h3 { margin: 0 0 10px 0; font-size: 17px; color: var(--accent); font-weight: 600; letter-spacing: -.2px;}
+    .row { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px;}
     .row > * { flex: 1 1 220px; min-width: 170px;}
-    label {
-      font-size: 13px;
-      color: var(--muted);
-      margin-bottom: 4px; display: block;
-      font-weight: 500;
-    }
-    input, select, button {
-      width: 100%;
-      border-radius: 11px;
-      border: 1px solid var(--border);
-      padding: 10px 11px;
-      background: #fafdff;
-      color: var(--text);
-      font-size: 15px;
-      font-family: inherit;
-      transition: border .16s, box-shadow .16s;
-    }
-    input:focus, select:focus {
-      border-color: #3170c7;
-      outline: none;
-      box-shadow: 0 0 0 2px #2b6aff2e;
-    }
-    .btn {
-      background: var(--accent-grad);
-      color: #fff;
-      font-weight: 600;
-      cursor: pointer;
-      border: none;
-      padding: 12px;
-      border-radius: 12px;
-      transition: box-shadow .16s, background .15s;
-      box-shadow: 0 1px 3px 0 #a5bad428;
-      font-size: 15px;
-      margin-right: 10px;
-      margin-bottom: 0;
-    }
-    .btn:active, .btn:focus {
-      box-shadow: 0 2px 10px 0 #2351a32e;
-      background: #3170c7;
-    }
-    .pill {
-      display: inline-block;
-      background: #e6f0fb;
-      color: var(--accent);
-      font-weight: 600;
-      border-radius: 999px;
-      padding: 5px 16px;
-      font-size: 13px;
-      margin-top: 3px;
-      border: 1px solid #dde5ef;
-      margin-bottom: 0;
-    }
-    .kpis {
-      display: grid;
-      grid-template-columns: repeat(4,1fr);
-      gap: 10px;
-      margin-bottom: 10px;
-    }
-    .kpi {
-      background: #fafdff;
-      border: 1px solid var(--border);
-      border-radius: 15px;
-      padding: 14px;
-      text-align: left;
-      box-shadow: 0 1px 4px #b2bfcf18;
-    }
-    .kpi .v {
-      font-weight: 800; font-size: 22px; color: var(--accent);
-      margin-bottom: 2px;
-    }
-    .kpi .l {
-      font-size: 13px;
-      color: var(--muted);
-    }
-    table {
-      width: 100%; border-collapse: separate; border-spacing: 0;
-      margin-bottom: 0;
-    }
-    thead th {
-      background: #f3f7fb;
-      color: #3470c7;
-      font-weight: 700;
-      font-size: 15px;
-      border-bottom: 2px solid var(--border);
-      position: sticky; top: 0; z-index: 2;
-    }
-    th, td {
-      padding: 8px 9px;
-      border-bottom: 1px solid #e6eaf0;
-      font-size: 14px;
-      text-align: left;
-      background: #fff;
-    }
+    label { font-size: 13px; color: var(--muted); margin-bottom: 4px; display: block; font-weight: 500;}
+    input, select, button { width: 100%; border-radius: 11px; border: 1px solid var(--border); padding: 10px 11px; background: #fafdff; color: var(--text); font-size: 15px; font-family: inherit; transition: border .16s, box-shadow .16s;}
+    input:focus, select:focus { border-color: #3170c7; outline: none; box-shadow: 0 0 0 2px #2b6aff2e;}
+    .btn { background: var(--accent-grad); color: #fff; font-weight: 600; cursor: pointer; border: none; padding: 12px; border-radius: 12px; transition: box-shadow .16s, background .15s; box-shadow: 0 1px 3px 0 #a5bad428; font-size: 15px; margin-right: 10px; margin-bottom: 0;}
+    .btn:active, .btn:focus { box-shadow: 0 2px 10px 0 #2351a32e; background: #3170c7;}
+    .pill { display: inline-block; background: #e6f0fb; color: var(--accent); font-weight: 600; border-radius: 999px; padding: 5px 16px; font-size: 13px; margin-top: 3px; border: 1px solid #dde5ef;}
+    .kpis { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 10px;}
+    .kpi { background: #fafdff; border: 1px solid var(--border); border-radius: 15px; padding: 14px; text-align: left; box-shadow: 0 1px 4px #b2bfcf18;}
+    .kpi .v { font-weight: 800; font-size: 22px; color: var(--accent); margin-bottom: 2px;}
+    .kpi .l { font-size: 13px; color: var(--muted);}
+    table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 0;}
+    thead th { background: #f3f7fb; color: #3470c7; font-weight: 700; font-size: 15px; border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 2;}
+    th, td { padding: 8px 9px; border-bottom: 1px solid #e6eaf0; font-size: 14px; text-align: left; background: #fff;}
     tbody tr:nth-child(odd) { background: #f9fbfc;}
     tbody tr:hover { background: #f1f6fc;}
-    .footer {
-      opacity:.88; font-size:13px; margin-top:12px; color:var(--muted);
-    }
-    .group {
-      margin: 12px 0 5px 0;
-      font-weight: 700;
-      color: #2d4d82;
-      font-size: 1.08em;
-    }
-    .instructions {
-      background: #fafdff;
-      border: 1.5px solid var(--border);
-      border-radius: 17px;
-      padding: 19px 16px 14px 20px;
-      margin-bottom: 10px;
-      color: #205094;
-      font-size: 15px;
-      line-height: 1.7;
-      box-shadow: 0 2px 16px #3170c706;
-      font-weight: 500;
-    }
-    .instructions strong {
-      color: #2351a3;
-      font-weight: 700;
-      font-size: 15.5px;
-    }
-    @media (max-width:900px){
-      .container {grid-template-columns: 1fr;}
-      .card {padding: 17px 6vw;}
-      .kpis {grid-template-columns: 1fr;}
-    }
-    @media (max-width:600px){
-      .card {padding: 13px 1vw;}
-      .header-wrap {padding: 0 6px;}
-      th,td{font-size:12px;}
-    }
+    .footer { opacity:.88; font-size:13px; margin-top:12px; color:var(--muted);}
+    .group { margin: 12px 0 5px 0; font-weight: 700; color: #2d4d82; font-size: 1.08em;}
+    .instructions { background: #fafdff; border: 1.5px solid var(--border); border-radius: 17px; padding: 19px 16px 14px 20px; margin-bottom: 10px; color: #205094; font-size: 15px; line-height: 1.7; box-shadow: 0 2px 16px #3170c706; font-weight: 500;}
+    .instructions strong { color: #2351a3; font-weight: 700; font-size: 15.5px;}
+    .row.config-buttons { gap: 10px; margin-top: 4px; margin-bottom: 2px;}
+    @media (max-width:900px){ .container {grid-template-columns: 1fr;} .card {padding: 17px 6vw;} .kpis {grid-template-columns: 1fr;} }
+    @media (max-width:600px){ .card {padding: 13px 1vw;} .header-wrap {padding: 0 6px;} th,td{font-size:12px;} }
   </style>
 </head>
 <body>
   <header>
     <div class="header-wrap">
-      <div class="title">Калькулятор квот для городского населения РФ</div>
-      <div class="subtitle">Онлайн-выборка, фильтры, экспорт, кросс-таблицы</div>
+      <div class="title">Калькулятор квот для исследований</div>
+      <div class="subtitle">Стиль Ipsos. Онлайн-выборка, фильтры, экспорт, кросс-таблицы</div>
     </div>
   </header>
   <div class="container">
@@ -231,8 +66,9 @@
         <li>Выберите 1–3 измерения (например, федеральный округ, страту, регион и т.п.).</li>
         <li>Добавьте фильтры по любым полям (например, по округу или типу города).</li>
         <li>Результат появляется ниже — квоты по ячейкам, проценты, экспорт.</li>
-        <li>Данные загружаются автоматически. Для своей базы – используйте импорт CSV/XLSX/JSON.</li>
+        <li>Данные встроены в систему (импорт отключён).</li>
         <li><b>Экспортируйте</b> таблицу квот в CSV или копируйте прямо в Excel.</li>
+        <li style="margin-top:4px"><b>NEW:</b> Сохраняйте конфигурации фильтров и параметров! (кнопки ниже)</li>
       </ul>
       <span style="color:#666;font-size:13px">Пример: Чтобы получить квоты по страте и региону для N=600 с минимальной ячейкой 5 — выберите соответствующие параметры и нажмите экспорт.<br>Фильтры срабатывают сразу.</span>
     </section>
@@ -242,7 +78,11 @@
         <div><label>Статус</label><div id="sourceStatus" class="pill">Загружено (встроено)</div></div>
         <div><label>Строк в базе</label><div id="rowsCount" class="pill">—</div></div>
         <div><label>Колонок</label><div id="colsCount" class="pill">—</div></div>
-        <div><label>Импорт файла (CSV, XLSX, JSON)</label><input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.json" /></div>
+      </div>
+      <div class="row config-buttons" style="margin-top:10px;">
+        <button class="btn" id="btnSaveConfig" title="Скачать текущую конфигурацию как файл">Сохранить конфиг</button>
+        <input type="file" id="fileConfigInput" style="display:none" accept=".json">
+        <button class="btn" id="btnLoadConfig" title="Загрузить сохранённый конфиг">Загрузить конфиг</button>
       </div>
     </section>
     <section class="card">
@@ -288,12 +128,9 @@
       <div class="footer">При выборе 3-го измерения таблицы выводятся по группам «Измерение 3».</div>
     </section>
   </div>
-
 <script>
-  // ========== ДАННЫЕ ==========
-  // Массив городов — demo для примера, для загрузки своего файла используйте импорт.
-  const cityData = [
- {
+const cityData = [
+  {
     "Код населённого пункта": 10162,
     "Населённый пункт": "Абаза, Республика Хакасия",
     "Численность населения": 11823,
@@ -25318,29 +25155,21 @@
     "Код страты": 100546,
     "Страта": "Менее 100тыс"
   }
-  ];
-  // ========== ЛОГИКА ==========
-  // ... (оставьте весь JS-код калькулятора из вашей исходной версии, можно взять из quotas-calculator2.html, заменить только cityData!)
-  // Для простоты вставьте ваш существующий рабочий JS ниже.
-</script>
-<script>
-// ===== Весь JS из вашей версии (коротко, структура та же) =====
-const state = { raw: [], filtered: [], columns: [], dims: [null,null,null], filters: {}, quotas: [], lastRender: { flatRows: [] }, weightCol: "Численность населения" };
-const $ = (s, r=document)=> r.querySelector(s); const $$=(s,r=document)=> Array.from(r.querySelectorAll(s));
+];
+const state = { raw: [], filtered: [], columns: [], dims: [null,null,null], filters: {}, lastRender: { flatRows: [] }, weightCol: "Численность населения" };
+const $ = (s, r=document)=> r.querySelector(s);
+const $$=(s,r=document)=> Array.from(r.querySelectorAll(s,r));
 const isNum = v=> typeof v==='number' && Number.isFinite(v);
 const toNum = v=> (v===''||v==null)? null : (typeof v==='number'? v : Number(String(v).replace(/\s|\u00A0/g,'')));
 const sum = arr=> arr.reduce((s,x)=> s + (toNum(x)||0), 0);
+
 function inferColumns(rows){ const set=new Set(); rows.slice(0,1000).forEach(r=> Object.keys(r||{}).forEach(k=> set.add(k))); return [...set]; }
-function useRows(rows,label){
+function useRows(rows){
   state.raw = rows.filter(Boolean); state.filtered = state.raw.slice(); state.columns = inferColumns(state.raw);
   $('#sourceStatus').textContent = 'Загружено';
   $('#rowsCount').textContent = state.raw.length.toLocaleString('ru');
   $('#colsCount').textContent = state.columns.length.toLocaleString('ru');
   fillDims(); buildFilters(); applyFilters();
-}
-function tryLoadFromDataJS(){
-  if(cityData && Array.isArray(cityData)){ useRows(cityData,'cityData'); return true; }
-  return false;
 }
 function sortValues(col, arr){
   if(!/\bСтрата\b/i.test(col)) return arr.sort((a,b)=> String(a).localeCompare(String(b),'ru'));
@@ -25359,7 +25188,7 @@ function buildFilters(){
     const values = Array.from(new Set(state.raw.map(r=> r[col]).filter(v=> v!=='' && v!=null)));
     const sorted = sortValues(col, values);
     const box = document.createElement('div'); box.innerHTML = `<label>${col}</label><select data-col="${col}" multiple size="7"></select>`;
-    const sel = $('select', box);
+    const sel = box.querySelector('select');
     sorted.forEach(v=>{ const o=document.createElement('option'); o.value=String(v); o.textContent=String(v); sel.appendChild(o); });
     sel.addEventListener('change', ()=>{
       const chosen = Array.from(sel.selectedOptions).map(o=>o.value);
@@ -25378,9 +25207,7 @@ function fillDims(){
   const strCols = state.columns.filter(c=> !state.raw.some(r=> isNum(toNum(r[c])) ));
   const put=(sel,list,allowEmpty)=>{ const el=$(sel); el.innerHTML=''; if(allowEmpty){const o=document.createElement('option'); o.value=''; o.textContent='—'; el.appendChild(o);} list.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; el.appendChild(o); }); };
   put('#dim1', strCols, false); put('#dim2', strCols, true); put('#dim3', strCols, true);
-  $('#dim1').value = strCols[0]||'';
-  $('#dim2').value = '';
-  $('#dim3').value = '';
+  $('#dim1').value = strCols[0]||''; $('#dim2').value = ''; $('#dim3').value = '';
   ['#dim1','#dim2','#dim3'].forEach(sel=> $(sel).addEventListener('change', recomputeNow));
   ['#inputN','#rounding','#minPerCell'].forEach(sel=> $(sel).addEventListener('input', recomputeNow));
 }
@@ -25469,17 +25296,78 @@ function recomputeNow(){
   const map = new Map(alloc.map(g => [JSON.stringify(g.vals), g.n]));
   renderTables(dims,buckets,map,totalW);
 }
-function readFile(file){
-  const ext=file.name.split('.').pop().toLowerCase(); const reader=new FileReader();
-  if(ext==='json'){ reader.onload=()=>{ const rows=JSON.parse(reader.result); useRows(Array.isArray(rows)? rows : (rows.data||[]), file.name); }; reader.readAsText(file,'utf-8'); }
-  else if(['csv','xlsx','xls'].includes(ext)){ reader.onload=()=>{ const wb=XLSX.read(reader.result,{type:'binary'}); const ws=wb.Sheets[wb.SheetNames[0]]; const json=XLSX.utils.sheet_to_json(ws,{defval:''}); useRows(json, file.name); }; reader.readAsBinaryString(file); }
-  else alert('Неподдерживаемый формат: '+ext);
+
+// --- Сохранение и загрузка конфигурации ---
+function getCurrentConfig() {
+  const filters = {};
+  $$('#filters select').forEach(sel => {
+    if(sel.selectedOptions.length) {
+      filters[sel.getAttribute('data-col')] = Array.from(sel.selectedOptions).map(opt=>opt.value);
+    }
+  });
+  return {
+    N: $('#inputN').value,
+    rounding: $('#rounding').value,
+    minPerCell: $('#minPerCell').value,
+    dims: [$('#dim1').value, $('#dim2').value, $('#dim3').value],
+    filters
+  };
 }
+function applyConfig(conf) {
+  $('#inputN').value = conf.N || 400;
+  $('#rounding').value = conf.rounding || 'largestRemainder';
+  $('#minPerCell').value = conf.minPerCell || 0;
+  $('#dim1').value = conf.dims?.[0] || '';
+  $('#dim2').value = conf.dims?.[1] || '';
+  $('#dim3').value = conf.dims?.[2] || '';
+  $$('#filters select').forEach(sel=>{ sel.selectedIndex = -1; });
+  if(conf.filters){
+    $$('#filters select').forEach(sel=>{
+      const col = sel.getAttribute('data-col');
+      if(conf.filters[col]){
+        Array.from(sel.options).forEach(opt=>{
+          opt.selected = conf.filters[col].includes(opt.value);
+        });
+        state.filters[col] = new Set(conf.filters[col]);
+      } else {
+        sel.selectedIndex = -1;
+        delete state.filters[col];
+      }
+    });
+  }
+  applyFilters();
+}
+
 window.addEventListener('DOMContentLoaded', ()=>{
-  if(!tryLoadFromDataJS()) $('#sourceStatus').textContent='Нет данных';
-  $('#fileInput').addEventListener('change', e=>{ const f=e.target.files?.[0]; if(f) readFile(f); });
+  useRows(cityData);
   $('#btnExportCSV').addEventListener('click', exportCSV);
   $('#btnCopyClipboard').addEventListener('click', exportClipboard);
+
+  // --- Добавляем обработчики кнопок ТОЛЬКО после загрузки DOM ---
+  $('#btnSaveConfig').onclick = function() {
+    const conf = getCurrentConfig();
+    const blob = new Blob([JSON.stringify(conf,null,2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'quota_config.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 100);
+  };
+  $('#btnLoadConfig').onclick = function() {
+    $('#fileConfigInput').click();
+  };
+  $('#fileConfigInput').onchange = function(e) {
+    const f = e.target.files?.[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=> {
+      try {
+        const conf = JSON.parse(reader.result);
+        applyConfig(conf);
+      } catch(e){ alert('Ошибка загрузки конфигурации!'); }
+    };
+    reader.readAsText(f, 'utf-8');
+  };
 });
 </script>
 </body>
